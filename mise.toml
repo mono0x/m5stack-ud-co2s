@@ -1,0 +1,4 @@
+[tools]
+"pipx:platformio" = "6.1.18"
+python = "3.13.11"
+uv = "0.12.17"
