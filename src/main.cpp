@@ -56,31 +56,48 @@ void draw(bool fresh) {
     auto& display = canvas;
     const Measurement ambient = compensateTemperature(measurement, config::temperatureOffset);
     const uint32_t color = co2Color(measurement.co2);
+    const int width = display.width();
+    const int height = display.height();
+    const int co2Top = (height - 200) / 2;
     display.fillScreen(TFT_BLACK);
-    display.setTextSize(2);
-    display.setTextColor(TFT_WHITE, TFT_BLACK);
-    display.setCursor(12, 12);
-    display.print("UD-CO2S");
-    display.setCursor(12, 48);
-    if (!hostReady) display.print("USB host init failed");
-    else if (!connected) display.print("Connect UD-CO2S");
-    else if (!fresh) display.print(hasMeasurement ? "Data timeout" : "Waiting for data");
-    else display.print(co2Alarm.isActive() ? "CO2 HIGH" : "Monitoring");
+    display.setTextWrap(false);
+    if (!fresh) {
+        const char* status;
+        if (!hostReady) status = "USB host init failed";
+        else if (!connected) status = "Connect UD-CO2S";
+        else status = hasMeasurement ? "Data timeout" : "Waiting for data";
+        display.setTextSize(2);
+        display.setTextColor(TFT_WHITE, TFT_BLACK);
+        if (display.textWidth(status) > width - 24) display.setTextSize(1);
+        display.setCursor((width - display.textWidth(status)) / 2, 4);
+        display.print(status);
+    }
 
     display.setTextColor(fresh ? color : TFT_DARKGREY, TFT_BLACK);
-    display.setTextSize(5);
-    display.setCursor(12, 88);
-    if (fresh) display.printf("%d", measurement.co2);
-    else display.print("----");
+    char concentration[6] = "----";
+    if (fresh) snprintf(concentration, sizeof(concentration), "%d", measurement.co2);
+    int textSize = 10;
+    display.setTextSize(textSize);
+    while (display.textWidth(concentration) > width - 24 && textSize > 1) {
+        display.setTextSize(--textSize);
+    }
+    display.setCursor((width - display.textWidth(concentration)) / 2, co2Top);
+    display.print(concentration);
     display.setTextSize(2);
-    display.setCursor(245, 110);
+    display.setCursor((width - display.textWidth("ppm")) / 2, co2Top + 84);
     display.print("ppm");
-    display.setTextColor(TFT_WHITE, TFT_BLACK);
-    display.setCursor(12, 158);
-    if (fresh) display.printf("%.1f C   %.1f %%", ambient.temperature, ambient.humidity);
-    else display.print("--.- C   --.- %");
-    display.setCursor(12, 205);
-    display.printf("Alarm > %d ppm", config::yellowThreshold);
+    char temperature[16] = "--.- C";
+    char humidity[16] = "--.- %";
+    if (fresh) {
+        snprintf(temperature, sizeof(temperature), "%.1f C", ambient.temperature);
+        snprintf(humidity, sizeof(humidity), "%.1f %%", ambient.humidity);
+    }
+    display.setTextColor(fresh ? TFT_WHITE : TFT_DARKGREY, TFT_BLACK);
+    display.setTextSize(4);
+    display.setCursor((width - display.textWidth(temperature)) / 2, height - 96);
+    display.print(temperature);
+    display.setCursor((width - display.textWidth(humidity)) / 2, height - 52);
+    display.print(humidity);
     // GPIO 35 is LCD D/C during transfer and MAX3421E MISO during USB transfers.
     gpio_set_direction(GPIO_NUM_35, GPIO_MODE_OUTPUT);
     canvas.pushSprite(0, 0);
@@ -102,7 +119,7 @@ void setup() {
     settings.internal_spk = true;
     M5.begin(settings);
     Serial.begin(115200);
-    M5.Display.setRotation(1);
+    M5.Display.setRotation(config::displayRotation);
     M5.Display.setBrightness(128);
     canvas.setColorDepth(8);
     if (canvas.createSprite(M5.Display.width(), M5.Display.height()) == nullptr) {

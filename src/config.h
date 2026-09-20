@@ -3,6 +3,9 @@
 #include <stdint.h>
 
 namespace config {
+// 1: original landscape, 3: inverted landscape, 0/2: portrait.
+constexpr uint8_t displayRotation = 0;
+static_assert(displayRotation <= 3, "Display rotation must be between 0 and 3");
 // Empirical UD-CO2S self-heating offset; set to 0 to disable compensation.
 constexpr float temperatureOffset = 4.5f;
 constexpr int greenThreshold = 1000;

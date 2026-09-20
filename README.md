@@ -23,6 +23,19 @@ M5Stack CoreS3 SE + USB Module v1.2 + I-O DATA UD-CO2S で、CO2 濃度と温湿
 
 画面は 8-bit の `M5Canvas` 上で完成させてから転送し、測定値や接続・警告状態が変わったときだけ更新します。画面全体を消去してから文字を描く際のちらつきを抑えます。
 
+CO2濃度は中央に大きく表示し、`ppm` はその下に表示します。数値の桁数と画面幅に合わせて文字サイズを調整し、標準フォントの最大10倍で表示します。
+
+温度・湿度は下部に1行ずつ、CO2濃度より小さい標準フォントの4倍サイズで表示します。切断やデータ待ちなどの状態は上部に表示します。
+
+表示の向きは [`src/config.h`](src/config.h) の `displayRotation` を変更して、再ビルド・書き込みすると切り替わります。縦向きでも画面幅・高さに合わせて配置します。
+
+| `displayRotation` | `1` を基準にした回転 | 画面サイズ |
+| --- | --- | --- |
+| `0` | 270° | 240 × 320 |
+| `1` | 0° | 320 × 240 |
+| `2` | 90° | 240 × 320 |
+| `3` | 180° | 320 × 240 |
+
 ## ビルド・書き込み
 
 ```sh
@@ -83,7 +96,7 @@ H1 = H0 × E(T0) / E(T1)
 
 根拠と確認できた範囲:
 
-- [指定の記事](https://blog.mono0x.net/2023/09/03/ud-co2s-temperature-and-humidity/) は、−4.5℃と飽和水蒸気圧比による補正で他の温湿度計に近づいた実測報告です。固定の湿度倍率（4/3）にはせず、温度に応じて換算します。
+- [UD-CO2Sの温湿度補正の実測報告](https://blog.mono0x.net/2023/09/03/ud-co2s-temperature-and-humidity/) は、−4.5℃と飽和水蒸気圧比による補正で他の温湿度計に近づいた報告です。湿度は温度に応じて換算します。
 - [Sensirion の自己発熱に関する資料](https://sensirion.com/media/documents/0FEA2450/61652EF9/Sensirion_CO2_Sensors_SCD30_Low_Power_Mode.pdf) は、自己発熱が温度・湿度に影響し、補正量は筐体や消費電力などに依存すると説明しています。
 - [Sensirion の湿度資料 §2.1](https://sensirion.com/en/media/documents/8AB2AD38/61642ADD/Sensirion_AppNotes_Humidity_Sensors_Introduction_to_Relative_Humidit.pdf) の一定圧力・結露なしでの換算式と、上記の飽和水蒸気圧比の考え方は整合します。同資料の Magnus 近似と記事の Tetens 近似では係数は異なります。
 - **4.5℃を全個体・全環境で使えるというメーカー保証や、公式アプリの実装そのものは確認できていません。** 初期値は経験的な補正量です。十分に温度が安定した状態で、熱源から離した基準温度計と比較し、必要なら調整してください。Serial には比較用に補正前後の値を残します。
@@ -96,7 +109,7 @@ H1 = H0 × E(T0) / E(T1)
 mise run test
 ```
 
-ユーザー環境でセンサー取得・画面表示・警告音・ちらつき改善を確認済みです。今回追加した温湿度補正の実測精度は未確認です。書き込み後は次を確認してください。
+温湿度補正の実測精度は未確認です。書き込み後は次を確認してください。
 
 1. Serial に `USB host: ready` → `CDC init: 0x00` → `Sensor connected` → `STA: 0x00` と表示され、測定値が続くこと。
 2. 画面の測定値が更新され、黄色への悪化時に2回、赤・紫への悪化時に3回鳴ること。同じ色が続く間や改善時は鳴らないこと。音の確認時だけ `config.h` の色のしきい値を順序を保って下げても確認できます。確認後は元に戻します。
@@ -111,4 +124,4 @@ mise run test
 - [PlatformIO CoreS3 board](https://docs.platformio.org/en/latest/boards/espressif32/m5stack-cores3.html)
 - [M5Unified](https://github.com/m5stack/M5Unified)
 - [UD-CO2S 製品仕様](https://www.iodata.jp/product/tsushin/iot/ud-co2s/spec.htm)
-- [UD-CO2S 通信の公開実装](https://gist.github.com/oquno/d07f6dbf8cc760f2534d9914efe79801) — CDC-ACM と通信形式はこの実装を根拠にしています。メーカーの通信仕様書は製品ページの申請フォーム経由であり、今回は取得していません。実機との適合性は確認が必要です。
+- [UD-CO2S 通信の公開実装](https://gist.github.com/oquno/d07f6dbf8cc760f2534d9914efe79801) — CDC-ACM と通信形式はこの実装を根拠にしています。メーカーの通信仕様書は製品ページの申請フォーム経由であり、取得していません。実機との適合性は確認が必要です。
