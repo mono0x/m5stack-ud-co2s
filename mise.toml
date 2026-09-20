@@ -13,6 +13,8 @@ run = """
 mkdir -p .pio/tests
 c++ -std=c++11 -Wall -Wextra -Werror -fsanitize=address,undefined test/measurement_test.cpp -o .pio/tests/measurement_test
 .pio/tests/measurement_test
+c++ -std=c++11 -Wall -Wextra -Werror -fsanitize=address,undefined test/time_sync_test.cpp -o .pio/tests/time_sync_test
+.pio/tests/time_sync_test
 """
 
 [tasks.upload]

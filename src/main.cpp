@@ -6,6 +6,7 @@
 #include "config.h"
 #include "alarm.h"
 #include "measurement.h"
+#include "time_sync.h"
 
 namespace {
 class SensorInit : public CDCAsyncOper {
@@ -120,7 +121,7 @@ void setup() {
     M5.begin(settings);
     Serial.begin(115200);
     M5.Display.setRotation(config::displayRotation);
-    M5.Display.setBrightness(128);
+    M5.Display.setBrightness(config::displayBrightness);
     canvas.setColorDepth(8);
     if (canvas.createSprite(M5.Display.width(), M5.Display.height()) == nullptr) {
         Serial.println("Display buffer allocation failed");
@@ -138,6 +139,7 @@ void setup() {
     hostReady = usb.Init() == 0;
     Serial.printf("USB host: %s\n", hostReady ? "ready" : "failed");
     draw(false);
+    beginTimeSync();
 }
 
 void loop() {
@@ -147,6 +149,7 @@ void loop() {
     M5.update();
     if (hostReady) usb.Task();
     uint32_t now = millis();
+    updateTimeSync(now);
     const bool ready = hostReady && sensor.isReady();
     if (ready != connected) {
         connected = ready;
