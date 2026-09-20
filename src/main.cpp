@@ -4,6 +4,7 @@
 #include <driver/gpio.h>
 
 #include "config.h"
+#include "alarm.h"
 #include "measurement.h"
 
 namespace {
@@ -42,10 +43,11 @@ void startMeasurement(uint32_t now) {
 
 uint32_t co2Color(int ppm) {
     // LED ranges from the UD-CO2S manual; bright tints for the black background.
-    if (ppm <= 1000) return 0x92B6FF;
-    if (ppm <= 1500) return 0x92FFAA;
-    if (ppm <= 2500) return 0xFFFFAA;
-    if (ppm <= 3500) return 0xFF92AA;
+    const Co2Level level = co2Level(ppm);
+    if (level == Co2Level::Blue) return 0x92B6FF;
+    if (level == Co2Level::Green) return 0x92FFAA;
+    if (level == Co2Level::Yellow) return 0xFFFFAA;
+    if (level == Co2Level::Red) return 0xFF92AA;
     return 0xDB92FF;
 }
 
@@ -78,7 +80,7 @@ void draw(bool fresh) {
     if (fresh) display.printf("%.1f C   %.1f %%", ambient.temperature, ambient.humidity);
     else display.print("--.- C   --.- %");
     display.setCursor(12, 205);
-    display.printf("Alarm >= %d ppm", config::alarmThreshold);
+    display.printf("Alarm > %d ppm", config::yellowThreshold);
     // GPIO 35 is LCD D/C during transfer and MAX3421E MISO during USB transfers.
     gpio_set_direction(GPIO_NUM_35, GPIO_MODE_OUTPUT);
     canvas.pushSprite(0, 0);
@@ -170,8 +172,7 @@ void loop() {
         parser.reset();
         startMeasurement(now);
     }
-    if (co2Alarm.update(measurement.co2, fresh, now, config::alarmThreshold,
-                     config::alarmClearThreshold, config::alarmIntervalMs)) {
+    if (co2Alarm.update(measurement.co2, fresh, now)) {
         M5.Speaker.tone(config::toneFrequency, config::toneDurationMs);
     }
     if (!co2Alarm.isActive()) M5.Speaker.stop();

@@ -66,30 +66,3 @@ private:
     size_t length = 0;
     bool discarding = false;
 };
-
-class Alarm {
-public:
-    bool update(int co2, bool fresh, uint32_t now, int threshold,
-                int clearThreshold, uint32_t interval) {
-        if (!fresh || co2 <= clearThreshold) {
-            active = false;
-            return false;
-        }
-        if (!active && co2 >= threshold) {
-            active = true;
-            lastTone = now;
-            return true;
-        }
-        if (active && uint32_t(now - lastTone) >= interval) {
-            lastTone = now;
-            return true;
-        }
-        return false;
-    }
-
-    bool isActive() const { return active; }
-
-private:
-    bool active = false;
-    uint32_t lastTone = 0;
-};
