@@ -11,6 +11,55 @@ bool feed(MeasurementParser& parser, const std::string& input, Measurement& resu
 }
 
 int main() {
+    MeasurementSampler sampler;
+    Measurement sample;
+    const auto updateSample = [&](uint32_t now) {
+        return sampler.update(sample, now,
+                              co2Level(sample.co2) != co2Level(sampler.current().co2));
+    };
+    sample.co2 = 1000;
+    assert(!sampler.hasValue());
+    assert(updateSample(0));
+    assert(sampler.hasValue() && sampler.current().co2 == 1000);
+    sample.co2 = 900;
+    sample.humidity = 50;
+    sample.temperature = 25;
+    assert(!updateSample(59999));
+    assert(sampler.current().co2 == 1000);
+    assert(updateSample(60000));
+    assert(sampler.current().co2 == 900 && sampler.current().humidity == 50 &&
+           sampler.current().temperature == 25);
+    sampler.invalidate();
+    assert(!sampler.hasValue());
+    assert(!updateSample(60001));
+    assert(!sampler.hasValue());
+    assert(updateSample(120000) && sampler.hasValue());
+    sampler = MeasurementSampler();
+    const uint32_t sampleStart = UINT32_MAX - 100;
+    assert(updateSample(sampleStart));
+    assert(!updateSample(uint32_t(sampleStart + 59999)));
+    assert(updateSample(uint32_t(sampleStart + 60000)));
+
+    // Crossing each color boundary updates immediately in both directions.
+    for (int threshold : {config::greenThreshold, config::yellowThreshold,
+                          config::redThreshold, config::purpleThreshold}) {
+        sampler = MeasurementSampler();
+        sample.co2 = threshold;
+        assert(updateSample(0));
+        sample.co2 = threshold + 1;
+        assert(updateSample(1));
+        assert(sampler.current().co2 == threshold + 1);
+        sample.co2 = threshold + 2;
+        assert(!updateSample(2));
+        assert(!updateSample(60000));
+        assert(updateSample(60001));
+        sample.co2 = threshold;
+        assert(updateSample(60002));
+        sampler.invalidate();
+        sample.co2 = threshold + 1;
+        assert(updateSample(60003) && sampler.hasValue());
+    }
+
     MeasurementParser parser;
     Measurement value;
     assert(!feed(parser, "STA\r\nOK\r\nCO2=123", value));

@@ -11,6 +11,29 @@ struct Measurement {
     float temperature = 0;
 };
 
+class MeasurementSampler {
+public:
+    bool update(const Measurement& incoming, uint32_t now, bool colorChanged) {
+        if (initialized && !colorChanged && uint32_t(now - lastUpdate) < 60000) return false;
+        value = incoming;
+        lastUpdate = now;
+        initialized = true;
+        available = true;
+        return true;
+    }
+
+    // Keep the interval across disconnects when the color stays the same.
+    void invalidate() { available = false; }
+    bool hasValue() const { return available; }
+    const Measurement& current() const { return value; }
+
+private:
+    Measurement value;
+    uint32_t lastUpdate = 0;
+    bool initialized = false;
+    bool available = false;
+};
+
 // Apply to validated raw samples, never to an already compensated measurement.
 inline Measurement compensateTemperature(const Measurement& raw, float offset) {
     Measurement result = raw;

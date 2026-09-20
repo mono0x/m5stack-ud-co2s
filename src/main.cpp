@@ -6,7 +6,6 @@
 #include "config.h"
 #include "alarm.h"
 #include "measurement.h"
-#include "time_sync.h"
 
 namespace {
 class SensorInit : public CDCAsyncOper {
@@ -23,7 +22,8 @@ USB usb;
 SensorInit sensorInit;
 ACM sensor(&usb, &sensorInit);
 MeasurementParser parser;
-Measurement measurement;
+MeasurementSampler sampler;
+const Measurement& measurement = sampler.current();
 Alarm co2Alarm;
 M5Canvas canvas(&M5.Display);
 bool hostReady = false;
@@ -32,6 +32,7 @@ bool hasMeasurement = false;
 uint32_t lastMeasurement = 0;
 uint32_t lastStart = 0;
 bool displayedFresh = false;
+bool displayedReceiving = false;
 uint32_t lastPoll = 0;
 uint8_t lastReceiveError = 0;
 
@@ -52,7 +53,7 @@ uint32_t co2Color(int ppm) {
     return 0xDB92FF;
 }
 
-void draw(bool fresh) {
+void draw(bool fresh, bool receiving) {
     if (canvas.getBuffer() == nullptr) return;
     auto& display = canvas;
     const Measurement ambient = compensateTemperature(measurement, config::temperatureOffset);
@@ -66,7 +67,8 @@ void draw(bool fresh) {
         const char* status;
         if (!hostReady) status = "USB host init failed";
         else if (!connected) status = "Connect UD-CO2S";
-        else status = hasMeasurement ? "Data timeout" : "Waiting for data";
+        else if (!hasMeasurement) status = "Waiting for data";
+        else status = receiving ? "Waiting for update" : "Data timeout";
         display.setTextSize(2);
         display.setTextColor(TFT_WHITE, TFT_BLACK);
         if (display.textWidth(status) > width - 24) display.setTextSize(1);
@@ -105,6 +107,7 @@ void draw(bool fresh) {
     M5.Display.waitDisplay();
     gpio_set_direction(GPIO_NUM_35, GPIO_MODE_INPUT);
     displayedFresh = fresh;
+    displayedReceiving = receiving;
 }
 }
 
@@ -121,7 +124,7 @@ void setup() {
     M5.begin(settings);
     Serial.begin(115200);
     M5.Display.setRotation(config::displayRotation);
-    M5.Display.setBrightness(config::displayBrightness);
+    M5.Display.setBrightness(32);
     canvas.setColorDepth(8);
     if (canvas.createSprite(M5.Display.width(), M5.Display.height()) == nullptr) {
         Serial.println("Display buffer allocation failed");
@@ -138,8 +141,7 @@ void setup() {
     gpio_set_direction(GPIO_NUM_35, GPIO_MODE_INPUT);
     hostReady = usb.Init() == 0;
     Serial.printf("USB host: %s\n", hostReady ? "ready" : "failed");
-    draw(false);
-    beginTimeSync();
+    draw(false, false);
 }
 
 void loop() {
@@ -149,17 +151,20 @@ void loop() {
     M5.update();
     if (hostReady) usb.Task();
     uint32_t now = millis();
-    updateTimeSync(now);
     const bool ready = hostReady && sensor.isReady();
     if (ready != connected) {
         connected = ready;
         hasMeasurement = false;
+        sampler.invalidate();
         parser.reset();
         lastReceiveError = 0;
         Serial.println(connected ? "Sensor connected" : "Sensor disconnected");
         if (connected) startMeasurement(now);
     }
 
+    if (hasMeasurement && uint32_t(now - lastMeasurement) >= config::staleAfterMs) {
+        sampler.invalidate();
+    }
     if (connected && uint32_t(now - lastPoll) >= 10) {
         lastPoll = now;
         uint8_t bytes[64];
@@ -167,10 +172,13 @@ void loop() {
         const uint8_t status = sensor.RcvData(&count, bytes);
         if (!status) {
             lastReceiveError = 0;
+            Measurement incoming;
             for (uint16_t i = 0; i < count; ++i) {
-                if (parser.feed(static_cast<char>(bytes[i]), measurement)) {
+                if (parser.feed(static_cast<char>(bytes[i]), incoming)) {
                     hasMeasurement = true;
                     lastMeasurement = millis();
+                    const bool colorChanged = co2Level(incoming.co2) != co2Level(measurement.co2);
+                    if (!sampler.update(incoming, lastMeasurement, colorChanged)) continue;
                     Serial.printf("CO2=%d,HUM=%.1f,TMP=%.1f\n", measurement.co2,
                                   measurement.humidity, measurement.temperature);
                     const Measurement ambient = compensateTemperature(measurement, config::temperatureOffset);
@@ -186,9 +194,10 @@ void loop() {
     }
 
     now = millis();
-    const bool fresh = connected && hasMeasurement &&
-                       uint32_t(now - lastMeasurement) < config::staleAfterMs;
-    if (connected && !fresh && uint32_t(now - lastStart) >= config::startRetryMs) {
+    const bool receiving = connected && hasMeasurement &&
+                           uint32_t(now - lastMeasurement) < config::staleAfterMs;
+    const bool fresh = receiving && sampler.hasValue();
+    if (connected && !receiving && uint32_t(now - lastStart) >= config::startRetryMs) {
         parser.reset();
         startMeasurement(now);
     }
@@ -201,8 +210,9 @@ void loop() {
          measurement.humidity != previousMeasurement.humidity ||
          measurement.temperature != previousMeasurement.temperature);
     if (measurementChanged || connected != previouslyConnected ||
-        fresh != displayedFresh || co2Alarm.isActive() != previouslyActive) {
-        draw(fresh);
+        fresh != displayedFresh || receiving != displayedReceiving ||
+        co2Alarm.isActive() != previouslyActive) {
+        draw(fresh, receiving);
     }
     delay(1);
 }
