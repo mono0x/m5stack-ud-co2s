@@ -40,11 +40,20 @@ void startMeasurement(uint32_t now) {
     lastStart = now;
 }
 
+uint32_t co2Color(int ppm) {
+    // LED ranges from the UD-CO2S manual; bright tints for the black background.
+    if (ppm <= 1000) return 0x92B6FF;
+    if (ppm <= 1500) return 0x92FFAA;
+    if (ppm <= 2500) return 0xFFFFAA;
+    if (ppm <= 3500) return 0xFF92AA;
+    return 0xDB92FF;
+}
+
 void draw(bool fresh) {
     if (canvas.getBuffer() == nullptr) return;
     auto& display = canvas;
     const Measurement ambient = compensateTemperature(measurement, config::temperatureOffset);
-    const uint32_t color = co2Alarm.isActive() ? TFT_ORANGE : TFT_GREEN;
+    const uint32_t color = co2Color(measurement.co2);
     display.fillScreen(TFT_BLACK);
     display.setTextSize(2);
     display.setTextColor(TFT_WHITE, TFT_BLACK);
