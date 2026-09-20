@@ -55,7 +55,7 @@ mise run monitor --port /dev/cu.usbmodem...
 
 書き込めない場合は CoreS3 SE を download mode に入れてから再実行してください。
 
-各 task は mise で管理する PlatformIO 6.1.18 の `pio` を実行します。初回のインストール・ビルドにはネットワーク接続が必要です。
+初回のインストール・ビルドにはネットワーク接続が必要です。
 
 ## 動作と設定
 
