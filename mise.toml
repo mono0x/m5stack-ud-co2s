@@ -1,4 +1,28 @@
 [tools]
 "pipx:platformio" = "6.1.18"
-python = "3.13.11"
+python = "3.14.2"
 uv = "0.12.17"
+
+[tasks.build]
+description = "CoreS3 SE 向けファームウェアをビルド"
+run = "pio run"
+
+[tasks.test]
+description = "PC 上で受信データ解析と警告判定をテスト"
+run = """
+mkdir -p .pio/tests
+c++ -std=c++11 -Wall -Wextra -Werror -fsanitize=address,undefined test/measurement_test.cpp -o .pio/tests/measurement_test
+.pio/tests/measurement_test
+"""
+
+[tasks.upload]
+description = "ビルドして CoreS3 SE に転送"
+run = "pio run --target upload"
+
+[tasks.monitor]
+description = "Serial monitor を開く（115200 baud）"
+run = "pio device monitor"
+
+[tasks.ports]
+description = "接続されている Serial port を一覧表示"
+run = "pio device list"
