@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cerrno>
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <stddef.h>
 #include <stdint.h>
@@ -46,22 +48,45 @@ inline Measurement compensateTemperature(const Measurement& raw, float offset) {
     return result;
 }
 
+enum class ParseResult { Incomplete, Valid, OutOfRange, Invalid };
+enum class ReceptionStatus { Waiting, Valid, OutOfRange, Invalid, Timeout };
+
+class MeasurementReception {
+public:
+    void update(ParseResult result, uint32_t now) {
+        if (result == ParseResult::Incomplete) return;
+        lastReceived = now;
+        state = result == ParseResult::Valid ? ReceptionStatus::Valid :
+                result == ParseResult::OutOfRange ? ReceptionStatus::OutOfRange :
+                ReceptionStatus::Invalid;
+    }
+
+    ReceptionStatus status(uint32_t now, uint32_t timeout) const {
+        if (state == ReceptionStatus::Waiting) return state;
+        return uint32_t(now - lastReceived) >= timeout ? ReceptionStatus::Timeout : state;
+    }
+
+private:
+    uint32_t lastReceived = 0;
+    ReceptionStatus state = ReceptionStatus::Waiting;
+};
+
 class MeasurementParser {
 public:
-    bool feed(char byte, Measurement& result) {
+    ParseResult feed(char byte, Measurement& result) {
         if (byte == '\n') {
             buffer[length] = '\0';
-            bool valid = !discarding && parse(result);
+            const ParseResult status = discarding ? ParseResult::Invalid : parse(result);
             reset();
-            return valid;
+            return status;
         }
-        if (discarding) return false;
+        if (discarding) return ParseResult::Incomplete;
         if (byte == '\0' || length == sizeof(buffer) - 1) {
             discarding = true;
-            return false;
+            return ParseResult::Incomplete;
         }
         buffer[length++] = byte;
-        return false;
+        return ParseResult::Incomplete;
     }
 
     void reset() {
@@ -70,19 +95,25 @@ public:
     }
 
 private:
-    bool parse(Measurement& result) {
+    ParseResult parse(Measurement& result) {
         Measurement value;
+        char concentration[96];
         int end = 0;
-        // Bound the integer conversion; accept only a complete measurement line.
-        if (std::sscanf(buffer, "CO2=%5d,HUM=%f,TMP=%f%n", &value.co2,
-                        &value.humidity, &value.temperature, &end) != 3) return false;
+        if (std::sscanf(buffer, "CO2=%95[+0123456789-],HUM=%f,TMP=%f%n", concentration,
+                        &value.humidity, &value.temperature, &end) != 3) return ParseResult::Invalid;
         if (buffer[end] == '\r') ++end;
-        if (buffer[end] != '\0' || value.co2 < 400 || value.co2 > 10000 ||
-            !std::isfinite(value.humidity) || !std::isfinite(value.temperature) ||
+        if (buffer[end] != '\0' || !std::isfinite(value.humidity) ||
+            !std::isfinite(value.temperature)) return ParseResult::Invalid;
+        char* numberEnd;
+        errno = 0;
+        const long co2 = std::strtol(concentration, &numberEnd, 10);
+        if (numberEnd == concentration || *numberEnd != '\0') return ParseResult::Invalid;
+        if (errno == ERANGE || co2 < 400 || co2 > 10000 ||
             value.humidity < 0 || value.humidity > 100 ||
-            value.temperature < -40 || value.temperature > 70) return false;
+            value.temperature < -40 || value.temperature > 70) return ParseResult::OutOfRange;
+        value.co2 = static_cast<int>(co2);
         result = value;
-        return true;
+        return ParseResult::Valid;
     }
 
     char buffer[96] = {};
