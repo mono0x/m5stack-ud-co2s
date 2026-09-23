@@ -15,16 +15,15 @@ struct Measurement {
 
 class MeasurementSampler {
 public:
-    bool update(const Measurement& incoming, uint32_t now, bool colorChanged) {
-        if (initialized && !colorChanged && uint32_t(now - lastUpdate) < 60000) return false;
+    bool update(const Measurement& incoming, uint32_t now, bool stateChanged) {
+        if (available && !stateChanged && uint32_t(now - lastUpdate) < 60000) return false;
         value = incoming;
         lastUpdate = now;
-        initialized = true;
         available = true;
         return true;
     }
 
-    // Keep the interval across disconnects when the color stays the same.
+    // Recovery accepts the next valid sample immediately.
     void invalidate() { available = false; }
     bool hasValue() const { return available; }
     const Measurement& current() const { return value; }
@@ -32,7 +31,6 @@ public:
 private:
     Measurement value;
     uint32_t lastUpdate = 0;
-    bool initialized = false;
     bool available = false;
 };
 

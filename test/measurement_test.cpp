@@ -31,9 +31,10 @@ int main() {
            sampler.current().temperature == 25);
     sampler.invalidate();
     assert(!sampler.hasValue());
-    assert(!updateSample(60001));
-    assert(!sampler.hasValue());
-    assert(updateSample(120000) && sampler.hasValue());
+    assert(updateSample(60001));
+    assert(sampler.hasValue());
+    assert(!updateSample(120000));
+    assert(updateSample(120001));
     sampler = MeasurementSampler();
     const uint32_t sampleStart = UINT32_MAX - 100;
     assert(updateSample(sampleStart));
@@ -183,17 +184,70 @@ int main() {
     assert(!alarm.update(1501, true, 6 * interval));
     assert(!alarm.update(1501, true, 7 * interval));
     assert(!alarm.update(1500, true, 7 * interval + 1) && !alarm.isActive());
-    burst(1501, 7 * interval + 2, 2);
+    assert(!alarm.update(1501, true, 7 * interval + 2));
+    assert(!alarm.update(1401, true, 7 * interval + 3));
+    assert(!alarm.update(1501, true, 7 * interval + 4));
+    assert(!alarm.update(1400, true, 7 * interval + 5));
+    burst(1501, 7 * interval + 6, 2);
 
-    // Missing data cancels the burst; fresh high readings start a new one.
+    // Missing data cancels the burst without rearming a notified level.
     assert(alarm.update(3501, true, 8 * interval));
     assert(!alarm.update(3501, false, 8 * interval + 1) && !alarm.isActive());
     assert(!alarm.update(3501, false, 8 * interval + spacing));
-    burst(3501, 9 * interval, 3);
+    assert(!alarm.update(3501, true, 9 * interval));
+    assert(!alarm.update(3501, true, 9 * interval + spacing));
     assert(!alarm.update(1000, true, 10 * interval));
     assert(alarm.update(2501, true, 10 * interval + 1));
     assert(!alarm.update(1501, true, 10 * interval + 2));
     assert(!alarm.update(1501, true, 10 * interval + spacing + 1));
+
+    // Each level rearms independently at exactly 100 ppm below its threshold.
+    for (int threshold : {1500, 2500, 3500}) {
+        alarm = Alarm();
+        const int count = threshold == 1500 ? 2 : 3;
+        burst(threshold + 1, 0, count);
+        assert(!alarm.update(threshold, true, 2000));
+        assert(!alarm.update(threshold + 1, true, 3000));
+        assert(!alarm.update(threshold - 99, true, 4000));
+        assert(!alarm.update(threshold + 1, true, 5000));
+        assert(!alarm.update(threshold - 100, true, 6000));
+        burst(threshold + 1, 7000, count);
+    }
+
+    alarm = Alarm();
+    burst(1501, 0, 2);
+    assert(!alarm.update(1500, true, 1000));
+    assert(!alarm.update(1501, true, 2000));
+    burst(2501, 3000, 3);
+    assert(!alarm.update(2500, true, 4000));
+    assert(!alarm.update(2501, true, 5000));
+    burst(3501, 6000, 3);
+
+    // Rearming forces an immediate sample update within the same color.
+    alarm = Alarm();
+    sampler = MeasurementSampler();
+    burst(1501, 0, 2);
+    assert(!alarm.update(1500, true, 1000));
+    sample.co2 = 1500;
+    assert(updateSample(1000));
+    sample.co2 = 1401;
+    assert(!alarm.rearm(sample.co2));
+    assert(!updateSample(1100));
+    sample.co2 = 1400;
+    const bool rearmed = alarm.rearm(sample.co2);
+    assert(rearmed);
+    assert(sampler.update(sample, 1200, rearmed));
+    assert(sampler.current().co2 == 1400);
+    assert(!alarm.rearm(sample.co2));
+    sample.co2 = 1399;
+    assert(!updateSample(61199));
+    assert(updateSample(61200));
+    burst(1501, 2000, 2);
+
+    alarm = Alarm();
+    burst(1501, 0, 2);
+    assert(!alarm.update(1000, false, 1000));
+    assert(!alarm.update(1501, true, 2000));
 
     // Inter-tone spacing survives millis() rollover without repeating later.
     alarm = Alarm();

@@ -14,8 +14,23 @@ inline Co2Level co2Level(int ppm) {
 
 class Alarm {
 public:
+    // Observe every valid sample, including those skipped by the display sampler.
+    bool rearm(int ppm) {
+        bool changed = false;
+        const int thresholds[] = {config::yellowThreshold, config::redThreshold,
+                                  config::purpleThreshold};
+        for (int i = 0; i < 3; ++i) {
+            if (notified[i] && ppm <= thresholds[i] - 100) {
+                notified[i] = false;
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
     // Called every loop; true requests one tone without blocking sensor polling.
     bool update(int ppm, bool fresh, uint32_t now) {
+        if (fresh) rearm(ppm);
         const Co2Level next = fresh ? co2Level(ppm) : Co2Level::Blue;
         const bool worsened = next > level;
         if (next != level || !fresh) {
@@ -24,7 +39,9 @@ public:
         level = next;
         if (!isActive()) return false;
 
-        if (worsened) {
+        const int index = static_cast<int>(level) - static_cast<int>(Co2Level::Yellow);
+        if (worsened && !notified[index]) {
+            notified[index] = true;
             remaining = level == Co2Level::Yellow ? 2 : 3;
             lastTone = now;
             --remaining;
@@ -42,6 +59,7 @@ public:
     bool isActive() const { return level >= Co2Level::Yellow; }
 
 private:
+    bool notified[3] = {};
     Co2Level level = Co2Level::Blue;
     uint8_t remaining = 0;
     uint32_t lastTone = 0;

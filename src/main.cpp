@@ -150,11 +150,13 @@ void loop() {
     const Measurement previousMeasurement = measurement;
     const bool previouslyConnected = connected;
     const bool previouslyActive = co2Alarm.isActive();
+    bool stateChanged = false;
     M5.update();
     if (hostReady) usb.Task();
     uint32_t now = millis();
     const bool ready = hostReady && sensor.isReady();
     if (ready != connected) {
+        stateChanged = true;
         connected = ready;
         reception = MeasurementReception();
         sampler.invalidate();
@@ -178,13 +180,17 @@ void loop() {
             for (uint16_t i = 0; i < count; ++i) {
                 const ParseResult result = parser.feed(static_cast<char>(bytes[i]), incoming);
                 const uint32_t receivedAt = millis();
+                const ReceptionStatus previousStatus = reception.status(receivedAt, config::staleAfterMs);
                 reception.update(result, receivedAt);
+                stateChanged |= reception.status(receivedAt, config::staleAfterMs) != previousStatus;
                 if (result == ParseResult::OutOfRange || result == ParseResult::Invalid) {
                     sampler.invalidate();
                 }
                 if (result == ParseResult::Valid) {
+                    const bool rearmed = co2Alarm.rearm(incoming.co2);
                     const bool colorChanged = co2Level(incoming.co2) != co2Level(measurement.co2);
-                    if (!sampler.update(incoming, receivedAt, colorChanged)) continue;
+                    stateChanged |= rearmed || colorChanged;
+                    if (!sampler.update(incoming, receivedAt, stateChanged)) continue;
                     Serial.printf("CO2=%d,HUM=%.1f,TMP=%.1f\n", measurement.co2,
                                   measurement.humidity, measurement.temperature);
                     const Measurement ambient = compensateTemperature(measurement, config::temperatureOffset);
@@ -209,6 +215,7 @@ void loop() {
         startMeasurement(now);
     }
     if (co2Alarm.update(measurement.co2, fresh, now)) {
+        stateChanged = true;
         M5.Speaker.tone(config::toneFrequency, config::toneDurationMs);
     }
     if (!co2Alarm.isActive()) M5.Speaker.stop();
@@ -216,7 +223,7 @@ void loop() {
         (measurement.co2 != previousMeasurement.co2 ||
          measurement.humidity != previousMeasurement.humidity ||
          measurement.temperature != previousMeasurement.temperature);
-    if (measurementChanged || connected != previouslyConnected ||
+    if (stateChanged || measurementChanged || connected != previouslyConnected ||
         fresh != displayedFresh || receptionStatus != displayedStatus ||
         co2Alarm.isActive() != previouslyActive) {
         draw(fresh, receptionStatus);
