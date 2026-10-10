@@ -22,6 +22,8 @@ jobs:
         with:
           version: 2026.10.6
       - run: |
+          cp src/config.example.h src/config.h
+      - run: |
           hk validate
         env:
           HK_PKL_BACKEND: pklr
