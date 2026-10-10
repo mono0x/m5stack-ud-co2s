@@ -19,5 +19,6 @@ constexpr uint32_t toneDurationMs = 200;
 constexpr uint32_t toneGapMs = 100;
 constexpr uint8_t volume = 80;
 static_assert(greenThreshold < yellowThreshold && yellowThreshold < redThreshold &&
-              redThreshold < purpleThreshold, "CO2 levels must be ordered");
-}
+                  redThreshold < purpleThreshold,
+              "CO2 levels must be ordered");
+} // namespace config

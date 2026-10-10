@@ -111,7 +111,7 @@ void draw(bool fresh, ReceptionStatus receptionStatus) {
     displayedFresh = fresh;
     displayedStatus = receptionStatus;
 }
-}
+} // namespace
 
 void setup() {
     // Arduino SPI.begin resets SPI2. Do this before M5GFX configures the LCD bus.
@@ -180,9 +180,11 @@ void loop() {
             for (uint16_t i = 0; i < count; ++i) {
                 const ParseResult result = parser.feed(static_cast<char>(bytes[i]), incoming);
                 const uint32_t receivedAt = millis();
-                const ReceptionStatus previousStatus = reception.status(receivedAt, config::staleAfterMs);
+                const ReceptionStatus previousStatus =
+                    reception.status(receivedAt, config::staleAfterMs);
                 reception.update(result, receivedAt);
-                stateChanged |= reception.status(receivedAt, config::staleAfterMs) != previousStatus;
+                stateChanged |=
+                    reception.status(receivedAt, config::staleAfterMs) != previousStatus;
                 if (result == ParseResult::OutOfRange || result == ParseResult::Invalid) {
                     sampler.invalidate();
                 }
@@ -193,7 +195,8 @@ void loop() {
                     if (!sampler.update(incoming, receivedAt, stateChanged)) continue;
                     Serial.printf("CO2=%d,HUM=%.1f,TMP=%.1f\n", measurement.co2,
                                   measurement.humidity, measurement.temperature);
-                    const Measurement ambient = compensateTemperature(measurement, config::temperatureOffset);
+                    const Measurement ambient =
+                        compensateTemperature(measurement, config::temperatureOffset);
                     Serial.printf("Estimated: HUM=%.1f,TMP=%.1f (offset=%.1f C)\n",
                                   ambient.humidity, ambient.temperature, config::temperatureOffset);
                 }
@@ -208,8 +211,8 @@ void loop() {
     now = millis();
     const ReceptionStatus receptionStatus = reception.status(now, config::staleAfterMs);
     const bool fresh = connected && receptionStatus == ReceptionStatus::Valid && sampler.hasValue();
-    const bool waiting = receptionStatus == ReceptionStatus::Waiting ||
-                         receptionStatus == ReceptionStatus::Timeout;
+    const bool waiting =
+        receptionStatus == ReceptionStatus::Waiting || receptionStatus == ReceptionStatus::Timeout;
     if (connected && waiting && uint32_t(now - lastStart) >= config::startRetryMs) {
         parser.reset();
         startMeasurement(now);
@@ -219,10 +222,10 @@ void loop() {
         M5.Speaker.tone(config::toneFrequency, config::toneDurationMs);
     }
     if (!co2Alarm.isActive()) M5.Speaker.stop();
-    const bool measurementChanged = fresh &&
-        (measurement.co2 != previousMeasurement.co2 ||
-         measurement.humidity != previousMeasurement.humidity ||
-         measurement.temperature != previousMeasurement.temperature);
+    const bool measurementChanged =
+        fresh && (measurement.co2 != previousMeasurement.co2 ||
+                  measurement.humidity != previousMeasurement.humidity ||
+                  measurement.temperature != previousMeasurement.temperature);
     if (stateChanged || measurementChanged || connected != previouslyConnected ||
         fresh != displayedFresh || receptionStatus != displayedStatus ||
         co2Alarm.isActive() != previouslyActive) {

@@ -54,9 +54,9 @@ public:
     void update(ParseResult result, uint32_t now) {
         if (result == ParseResult::Incomplete) return;
         lastReceived = now;
-        state = result == ParseResult::Valid ? ReceptionStatus::Valid :
-                result == ParseResult::OutOfRange ? ReceptionStatus::OutOfRange :
-                ReceptionStatus::Invalid;
+        state = result == ParseResult::Valid        ? ReceptionStatus::Valid
+                : result == ParseResult::OutOfRange ? ReceptionStatus::OutOfRange
+                                                    : ReceptionStatus::Invalid;
     }
 
     ReceptionStatus status(uint32_t now, uint32_t timeout) const {
@@ -98,17 +98,19 @@ private:
         char concentration[96];
         int end = 0;
         if (std::sscanf(buffer, "CO2=%95[+0123456789-],HUM=%f,TMP=%f%n", concentration,
-                        &value.humidity, &value.temperature, &end) != 3) return ParseResult::Invalid;
+                        &value.humidity, &value.temperature, &end) != 3)
+            return ParseResult::Invalid;
         if (buffer[end] == '\r') ++end;
         if (buffer[end] != '\0' || !std::isfinite(value.humidity) ||
-            !std::isfinite(value.temperature)) return ParseResult::Invalid;
+            !std::isfinite(value.temperature))
+            return ParseResult::Invalid;
         char* numberEnd;
         errno = 0;
         const long co2 = std::strtol(concentration, &numberEnd, 10);
         if (numberEnd == concentration || *numberEnd != '\0') return ParseResult::Invalid;
-        if (errno == ERANGE || co2 < 400 || co2 > 10000 ||
-            value.humidity < 0 || value.humidity > 100 ||
-            value.temperature < -40 || value.temperature > 70) return ParseResult::OutOfRange;
+        if (errno == ERANGE || co2 < 400 || co2 > 10000 || value.humidity < 0 ||
+            value.humidity > 100 || value.temperature < -40 || value.temperature > 70)
+            return ParseResult::OutOfRange;
         value.co2 = static_cast<int>(co2);
         result = value;
         return ParseResult::Valid;

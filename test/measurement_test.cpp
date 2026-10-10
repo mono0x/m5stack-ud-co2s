@@ -6,7 +6,8 @@
 
 bool feed(MeasurementParser& parser, const std::string& input, Measurement& result) {
     bool received = false;
-    for (char byte : input) received = (parser.feed(byte, result) == ParseResult::Valid) || received;
+    for (char byte : input)
+        received = (parser.feed(byte, result) == ParseResult::Valid) || received;
     return received;
 }
 
@@ -14,8 +15,7 @@ int main() {
     MeasurementSampler sampler;
     Measurement sample;
     const auto updateSample = [&](uint32_t now) {
-        return sampler.update(sample, now,
-                              co2Level(sample.co2) != co2Level(sampler.current().co2));
+        return sampler.update(sample, now, co2Level(sample.co2) != co2Level(sampler.current().co2));
     };
     sample.co2 = 1000;
     assert(!sampler.hasValue());
@@ -42,8 +42,8 @@ int main() {
     assert(updateSample(uint32_t(sampleStart + 60000)));
 
     // Crossing each color boundary updates immediately in both directions.
-    for (int threshold : {config::greenThreshold, config::yellowThreshold,
-                          config::redThreshold, config::purpleThreshold}) {
+    for (int threshold : {config::greenThreshold, config::yellowThreshold, config::redThreshold,
+                          config::purpleThreshold}) {
         sampler = MeasurementSampler();
         sample.co2 = threshold;
         assert(updateSample(0));
@@ -68,10 +68,10 @@ int main() {
     assert(value.co2 == 1234 && value.humidity == 45.6f && value.temperature == -2.3f);
     assert(feed(parser, "CO2=400,HUM=0,TMP=-40\nCO2=10000,HUM=100,TMP=70\n", value));
     assert(value.co2 == 10000);
-    for (const auto* line : {"CO2=0,HUM=50,TMP=20\n", "CO2=999999999999,HUM=50,TMP=20\n",
-                             "CO2=500,HUM=nan,TMP=20\n", "CO2=500,HUM=50,TMP=inf\n",
-                             "CO2=500,HUM=101,TMP=20\n", "CO2=500,HUM=50,TMP=71\n",
-                             "CO2=500,HUM=50,TMP=20junk\n", "CO2=500,HUM=50\n"}) {
+    for (const auto* line :
+         {"CO2=0,HUM=50,TMP=20\n", "CO2=999999999999,HUM=50,TMP=20\n", "CO2=500,HUM=nan,TMP=20\n",
+          "CO2=500,HUM=50,TMP=inf\n", "CO2=500,HUM=101,TMP=20\n", "CO2=500,HUM=50,TMP=71\n",
+          "CO2=500,HUM=50,TMP=20junk\n", "CO2=500,HUM=50\n"}) {
         assert(!feed(parser, line, value));
         assert(value.co2 == 10000);
     }
@@ -87,17 +87,17 @@ int main() {
         for (char byte : line) result = parser.feed(byte, value);
         return result;
     };
-    for (const auto* line : {"CO2=10001,HUM=50,TMP=20\n", "CO2=100000,HUM=50,TMP=20\n",
-                             "CO2=999999999999999999999999999999,HUM=50,TMP=20\n",
-                             "CO2=399,HUM=50,TMP=20\n", "CO2=-1,HUM=50,TMP=20\n",
-                             "CO2=500,HUM=101,TMP=20\n", "CO2=500,HUM=-1,TMP=20\n",
-                             "CO2=500,HUM=50,TMP=71\n", "CO2=500,HUM=50,TMP=-41\r\n"}) {
+    for (const auto* line :
+         {"CO2=10001,HUM=50,TMP=20\n", "CO2=100000,HUM=50,TMP=20\n",
+          "CO2=999999999999999999999999999999,HUM=50,TMP=20\n", "CO2=399,HUM=50,TMP=20\n",
+          "CO2=-1,HUM=50,TMP=20\n", "CO2=500,HUM=101,TMP=20\n", "CO2=500,HUM=-1,TMP=20\n",
+          "CO2=500,HUM=50,TMP=71\n", "CO2=500,HUM=50,TMP=-41\r\n"}) {
         assert(parseLine(line) == ParseResult::OutOfRange);
         assert(value.co2 == 500 && value.humidity == 50 && value.temperature == 20);
     }
-    for (const auto* line : {"CO2=500,HUM=nan,TMP=20\n", "CO2=500,HUM=50,TMP=inf\n",
-                             "CO2=500,HUM=50\n", "CO2=500,HUM=50,TMP=20junk\n",
-                             "CO2=--1,HUM=50,TMP=20\n"}) {
+    for (const auto* line :
+         {"CO2=500,HUM=nan,TMP=20\n", "CO2=500,HUM=50,TMP=inf\n", "CO2=500,HUM=50\n",
+          "CO2=500,HUM=50,TMP=20junk\n", "CO2=--1,HUM=50,TMP=20\n"}) {
         assert(parseLine(line) == ParseResult::Invalid);
     }
     assert(parseLine(std::string(100, 'x') + "\n") == ParseResult::Invalid);
@@ -123,7 +123,8 @@ int main() {
     assert(reception.status(40002, timeout) == ReceptionStatus::Valid);
     const uint32_t receptionStart = UINT32_MAX - 100;
     reception.update(ParseResult::OutOfRange, receptionStart);
-    assert(reception.status(uint32_t(receptionStart + 9999), timeout) == ReceptionStatus::OutOfRange);
+    assert(reception.status(uint32_t(receptionStart + 9999), timeout) ==
+           ReceptionStatus::OutOfRange);
     assert(reception.status(uint32_t(receptionStart + 10000), timeout) == ReceptionStatus::Timeout);
     reception = MeasurementReception();
     assert(reception.status(0, timeout) == ReceptionStatus::Waiting);

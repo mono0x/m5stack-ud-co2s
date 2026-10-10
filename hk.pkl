@@ -1,0 +1,58 @@
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
+
+local linters = new Mapping<String, Step> {
+  ["clang-format"] = Builtins.clang_format
+  ["cppcheck"] {
+    depends = List("clang-format")
+    glob = "**/*.{cpp,h}"
+    check =
+      "cppcheck --quiet --error-exitcode=1 --language=c++ --std=c++11 --enable=warning,style,performance,portability --inline-suppr --suppress=missingIncludeSystem --suppress=assertWithSideEffect:test/* {{ files }}"
+  }
+  ["dprint"] = (Builtins.dprint) {
+    glob = "**/*.{json,jsonc,md,yaml,yml,toml}"
+  }
+  ["jactionlint"] {
+    glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
+    batch = true
+    diagnostic_format = "sarif"
+    check = "jactionlint --format sarif {{files}}"
+    check_diff = "hk util sarif-diff -- jactionlint --format sarif {{files}}"
+    fix = "jactionlint --fix {{files}}"
+  }
+  ["pkl"] = Builtins.pkl
+  ["pkl-format"] = Builtins.pkl_format
+}
+
+local checkers = new Mapping<String, Step> {
+  ...linters
+
+  ["test"] {
+    depends = List("clang-format", "cppcheck")
+    glob = List("src/alarm.h", "src/measurement.h", "test/**")
+    check = "mise run test"
+  }
+}
+
+// Private local configuration
+exclude = List("src/config.h")
+
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps = checkers
+  }
+  ["post-tool-use"] {
+    fix = true
+    steps = linters
+  }
+  ["fix"] {
+    fix = true
+    steps = checkers
+  }
+  ["check"] {
+    steps = checkers
+  }
+}

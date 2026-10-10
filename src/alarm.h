@@ -47,8 +47,7 @@ public:
             --remaining;
             return true;
         }
-        if (remaining && uint32_t(now - lastTone) >=
-                         config::toneDurationMs + config::toneGapMs) {
+        if (remaining && uint32_t(now - lastTone) >= config::toneDurationMs + config::toneGapMs) {
             --remaining;
             lastTone = now;
             return true;
