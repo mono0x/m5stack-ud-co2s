@@ -9,7 +9,7 @@ jactionlint = "2.2.0"
 "pipx:platformio" = { version = "6.1.18", with = ["pip"] }
 pkl = "0.32.1"
 python = "3.14.2"
-uv = "0.12.17"
+uv = "0.13.4"
 
 [tasks.build]
 description = "CoreS3 SE 向けファームウェアをビルド"
