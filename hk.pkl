@@ -23,6 +23,10 @@ local linters = new Mapping<String, Step> {
   }
   ["pkl"] = Builtins.pkl
   ["pkl-format"] = Builtins.pkl_format
+  ["secretlint"] {
+    glob = "**/*"
+    check = "mise exec -- secretlint --no-glob {{ files }}"
+  }
 }
 
 local checkers = new Mapping<String, Step> {
